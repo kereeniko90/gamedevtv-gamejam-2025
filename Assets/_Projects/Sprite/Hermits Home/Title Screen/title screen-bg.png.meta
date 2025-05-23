@@ -1,10 +1,10 @@
 fileFormatVersion: 2
-guid: 8c3af1eb59331e34bb2578a9355ae305
+guid: 027b97dfb779a814684e33fba127dbda
 TextureImporter:
   internalIDToNameTable:
   - first:
-      213: -6892709482830257945
-    second: interiortest_0
+      213: 6839512549625601269
+    second: title screen-bg_0
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -72,7 +72,7 @@ TextureImporter:
   platformSettings:
   - serializedVersion: 4
     buildTarget: DefaultTexturePlatform
-    maxTextureSize: 2048
+    maxTextureSize: 4096
     resizeAlgorithm: 0
     textureFormat: -1
     textureCompression: 1
@@ -152,13 +152,13 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: interiortest_0
+      name: title screen-bg_0
       rect:
         serializedVersion: 2
         x: 0
         y: 0
-        width: 640
-        height: 480
+        width: 2560
+        height: 1440
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -167,8 +167,8 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: 7e0afe79e3d2850a0800000000000000
-      internalID: -6892709482830257945
+      spriteID: 5fc92453d64daee50800000000000000
+      internalID: 6839512549625601269
       vertices: []
       indices: 
       edges: []
@@ -177,7 +177,7 @@ TextureImporter:
     customData: 
     physicsShape: []
     bones: []
-    spriteID: 
+    spriteID: 5e97eb03825dee720800000000000000
     internalID: 0
     vertices: []
     indices: 
@@ -187,7 +187,7 @@ TextureImporter:
     spriteCustomMetadata:
       entries: []
     nameFileIdTable:
-      interiortest_0: -6892709482830257945
+      title screen-bg_0: 6839512549625601269
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

@@ -1,10 +1,10 @@
 fileFormatVersion: 2
-guid: 8c3af1eb59331e34bb2578a9355ae305
+guid: 215b95bce0cb26d47a2ba18353e04f72
 TextureImporter:
   internalIDToNameTable:
   - first:
-      213: -6892709482830257945
-    second: interiortest_0
+      213: 5858001155441700991
+    second: House full map_0
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -46,12 +46,12 @@ TextureImporter:
   nPOTScale: 0
   lightmap: 0
   compressionQuality: 50
-  spriteMode: 2
+  spriteMode: 1
   spriteExtrude: 1
   spriteMeshType: 1
   alignment: 0
   spritePivot: {x: 0.5, y: 0.5}
-  spritePixelsToUnits: 100
+  spritePixelsToUnits: 1
   spriteBorder: {x: 0, y: 0, z: 0, w: 0}
   spriteGenerateFallbackPhysicsShape: 1
   alphaUsage: 1
@@ -152,13 +152,13 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: interiortest_0
+      name: House full map_0
       rect:
         serializedVersion: 2
         x: 0
         y: 0
-        width: 640
-        height: 480
+        width: 1746
+        height: 1460
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -167,8 +167,8 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: 7e0afe79e3d2850a0800000000000000
-      internalID: -6892709482830257945
+      spriteID: f703eeb830dcb4150800000000000000
+      internalID: 5858001155441700991
       vertices: []
       indices: 
       edges: []
@@ -177,7 +177,7 @@ TextureImporter:
     customData: 
     physicsShape: []
     bones: []
-    spriteID: 
+    spriteID: 5e97eb03825dee720800000000000000
     internalID: 0
     vertices: []
     indices: 
@@ -187,7 +187,7 @@ TextureImporter:
     spriteCustomMetadata:
       entries: []
     nameFileIdTable:
-      interiortest_0: -6892709482830257945
+      House full map_0: 5858001155441700991
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 
