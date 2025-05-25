@@ -1,0 +1,50 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b925be0c727ab5f48a6a613105b4230f, type: 3}
+  m_Name: Lamp
+  m_EditorClassIdentifier: 
+  itemName: Lamp
+  itemSprite: {fileID: 21300000, guid: f6f7e290312b72e458564a451375d153, type: 3}
+  description: Wish I had some light near the bed... tired of bumping into stuff.
+  placementPreferences:
+  - areaIdentifier: Floor1
+    zones:
+    - zoneName: OpenArea
+      zoneVertices:
+      - {x: 634.614, y: 426.42438}
+      - {x: 630.24475, y: 11.068481}
+      - {x: 262.4096, y: 11.068481}
+      - {x: 270.24768, y: 364.21533}
+      - {x: 371.95416, y: 422.4746}
+      pointValue: 5
+      debugColor: {r: 0, g: 0, b: 1, a: 1}
+    - zoneName: NextToBed
+      zoneVertices:
+      - {x: -130.2638, y: -5.4300537}
+      - {x: -60.717896, y: -88.2229}
+      - {x: 159.84222, y: -90.2099}
+      - {x: 130.0368, y: 75.37573}
+      - {x: -141.67627, y: 79.64801}
+      pointValue: 10
+      debugColor: {r: 0, g: 0, b: 1, a: 1}
+    defaultAreaPoints: 5
+  basePoints: 0
+  wrongPlacementPenalty: 0
+  restrictedAreas:
+  - CupboardTop
+  - CupboardMid
+  - CupboardBot
+  - SinkArea
+  - ShelfTop
+  - ShelfMid
+  - ShelfBot
+  - Wall

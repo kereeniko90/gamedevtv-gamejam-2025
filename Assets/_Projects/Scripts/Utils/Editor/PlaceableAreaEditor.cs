@@ -11,6 +11,12 @@ public class PlaceableAreaEditor : Editor
     private float handleSize = 0.15f;
     private bool addVertexMode = false;
     
+    // Zone editing variables
+    private int selectedZone = -1;
+    private int selectedZoneVertex = -1;
+    private bool editingZones = false;
+    private bool addZoneVertexMode = false;
+    
     // For vertex dragging
     private bool isDraggingVertex = false;
     private Vector2 dragStartPosition;
@@ -31,7 +37,50 @@ public class PlaceableAreaEditor : Editor
         base.OnInspectorGUI();
         
         EditorGUILayout.Space();
-        EditorGUILayout.LabelField("Vertex Editing Tools", EditorStyles.boldLabel);
+        
+        // Mode selection
+        EditorGUILayout.LabelField("Editing Mode", EditorStyles.boldLabel);
+        EditorGUILayout.BeginHorizontal();
+        
+        GUI.backgroundColor = !editingZones ? Color.green : Color.white;
+        if (GUILayout.Button("Edit Area"))
+        {
+            editingZones = false;
+            addVertexMode = false;
+            addZoneVertexMode = false;
+            selectedVertex = -1;
+            selectedZone = -1;
+            selectedZoneVertex = -1;
+            Tools.hidden = false;
+        }
+        
+        GUI.backgroundColor = editingZones ? Color.green : Color.white;
+        if (GUILayout.Button("Edit Zones"))
+        {
+            editingZones = true;
+            addVertexMode = false;
+            addZoneVertexMode = false;
+            selectedVertex = -1;
+            Tools.hidden = false;
+        }
+        GUI.backgroundColor = Color.white;
+        
+        EditorGUILayout.EndHorizontal();
+        EditorGUILayout.Space();
+        
+        if (!editingZones)
+        {
+            DrawAreaEditingGUI();
+        }
+        else
+        {
+            DrawZoneEditingGUI();
+        }
+    }
+    
+    private void DrawAreaEditingGUI()
+    {
+        EditorGUILayout.LabelField("Area Vertex Editing", EditorStyles.boldLabel);
         
         handleSize = EditorGUILayout.Slider("Handle Size", handleSize, 0.05f, 0.5f);
         
@@ -75,14 +124,8 @@ public class PlaceableAreaEditor : Editor
                 EditorUtility.SetDirty(area);
             }
         }
-        else
-        {
-            EditorGUILayout.LabelField("No Vertex Selected", EditorStyles.boldLabel);
-        }
         
-        EditorGUILayout.Space();
-        EditorGUILayout.HelpBox("• Click on a vertex to select it\n• Drag selected vertex to move it\n• Press Delete to remove a selected vertex", MessageType.Info);
-        
+        // Preset shapes
         EditorGUILayout.Space();
         EditorGUILayout.LabelField("Preset Shapes", EditorStyles.boldLabel);
         EditorGUILayout.BeginHorizontal();
@@ -111,18 +154,152 @@ public class PlaceableAreaEditor : Editor
         EditorGUILayout.EndHorizontal();
     }
     
+    private void DrawZoneEditingGUI()
+    {
+        EditorGUILayout.LabelField("Scoring Zone Editing", EditorStyles.boldLabel);
+        
+        handleSize = EditorGUILayout.Slider("Handle Size", handleSize, 0.05f, 0.5f);
+        
+        EditorGUILayout.Space();
+        
+        // Zone selection
+        EditorGUILayout.LabelField("Zones", EditorStyles.boldLabel);
+        
+        if (GUILayout.Button("Add New Zone"))
+        {
+            Undo.RecordObject(area, "Add Scoring Zone");
+            ScoringZone newZone = new ScoringZone();
+            newZone.zoneName = $"Zone {area.ScoringZones.Count}";
+            newZone.pointValue = 20;
+            newZone.debugColor = Color.blue;
+            area.ScoringZones.Add(newZone);
+            selectedZone = area.ScoringZones.Count - 1;
+            selectedZoneVertex = -1;
+            EditorUtility.SetDirty(area);
+        }
+        
+        // Display zones
+        for (int i = 0; i < area.ScoringZones.Count; i++)
+        {
+            EditorGUILayout.BeginHorizontal();
+            
+            GUI.backgroundColor = (i == selectedZone) ? Color.green : Color.white;
+            if (GUILayout.Button($"{area.ScoringZones[i].zoneName} ({area.ScoringZones[i].zoneVertices.Count} vertices)"))
+            {
+                selectedZone = i;
+                selectedZoneVertex = -1;
+                addZoneVertexMode = false;
+            }
+            GUI.backgroundColor = Color.white;
+            
+            if (GUILayout.Button("X", GUILayout.Width(25)))
+            {
+                Undo.RecordObject(area, "Remove Scoring Zone");
+                area.ScoringZones.RemoveAt(i);
+                if (selectedZone >= i) selectedZone = -1;
+                selectedZoneVertex = -1;
+                EditorUtility.SetDirty(area);
+                break;
+            }
+            
+            EditorGUILayout.EndHorizontal();
+        }
+        
+        EditorGUILayout.Space();
+        
+        // Selected zone editing
+        if (selectedZone >= 0 && selectedZone < area.ScoringZones.Count)
+        {
+            ScoringZone zone = area.ScoringZones[selectedZone];
+            
+            EditorGUILayout.LabelField($"Editing: {zone.zoneName}", EditorStyles.boldLabel);
+            
+            EditorGUI.BeginChangeCheck();
+            
+            zone.zoneName = EditorGUILayout.TextField("Zone Name", zone.zoneName);
+            zone.pointValue = EditorGUILayout.IntField("Point Value", zone.pointValue);
+            zone.debugColor = EditorGUILayout.ColorField("Debug Color", zone.debugColor);
+            
+            if (EditorGUI.EndChangeCheck())
+            {
+                EditorUtility.SetDirty(area);
+            }
+            
+            EditorGUILayout.Space();
+            
+            // Zone vertex editing
+            GUI.backgroundColor = addZoneVertexMode ? Color.green : Color.white;
+            if (GUILayout.Button(addZoneVertexMode ? "✓ Click in Scene to Add Zone Vertices" : "Enter Add Zone Vertex Mode"))
+            {
+                addZoneVertexMode = !addZoneVertexMode;
+                Tools.hidden = addZoneVertexMode;
+            }
+            GUI.backgroundColor = Color.white;
+            
+            if (!addZoneVertexMode && GUILayout.Button("Add Zone Vertex at Center"))
+            {
+                Undo.RecordObject(area, "Add Zone Vertex");
+                AddZoneVertexAtCenter(selectedZone);
+                EditorUtility.SetDirty(area);
+            }
+            
+            EditorGUILayout.Space();
+            
+            // Selected zone vertex info
+            if (selectedZoneVertex >= 0 && selectedZoneVertex < zone.zoneVertices.Count)
+            {
+                EditorGUILayout.LabelField($"Selected Zone Vertex: {selectedZoneVertex}", EditorStyles.boldLabel);
+                
+                EditorGUI.BeginChangeCheck();
+                Vector2 newPos = EditorGUILayout.Vector2Field("Position", zone.zoneVertices[selectedZoneVertex]);
+                if (EditorGUI.EndChangeCheck())
+                {
+                    Undo.RecordObject(area, "Move Zone Vertex");
+                    zone.zoneVertices[selectedZoneVertex] = newPos;
+                    EditorUtility.SetDirty(area);
+                }
+                
+                if (GUILayout.Button("Delete Selected Zone Vertex"))
+                {
+                    Undo.RecordObject(area, "Remove Zone Vertex");
+                    zone.zoneVertices.RemoveAt(selectedZoneVertex);
+                    selectedZoneVertex = -1;
+                    EditorUtility.SetDirty(area);
+                }
+            }
+        }
+        
+        EditorGUILayout.Space();
+        EditorGUILayout.HelpBox("• Switch to 'Edit Zones' mode to see and edit scoring zones\n• Click on zone vertices to select them\n• Drag selected vertices to move them", MessageType.Info);
+    }
+    
     private void OnSceneGUI()
     {
         Event e = Event.current;
         
-        // Draw the polygon shape and handle interactions
-        DrawShapePolygon();
+        if (!editingZones)
+        {
+            HandleAreaEditing(e);
+        }
+        else
+        {
+            HandleZoneEditing(e);
+        }
         
         // Handle keyboard shortcuts
         HandleKeyboardShortcuts(e);
         
-        // CUSTOM VERTEX MOVEMENT SYSTEM
-        // This replaces Unity's PositionHandle which can be finicky
+        // Force repaint during dragging
+        if (isDraggingVertex)
+        {
+            SceneView.RepaintAll();
+        }
+    }
+    
+    private void HandleAreaEditing(Event e)
+    {
+        // Draw the polygon shape
+        DrawShapePolygon();
         
         List<Vector2> worldVertices = area.GetWorldVertices();
         
@@ -141,21 +318,80 @@ public class PlaceableAreaEditor : Editor
             EditorUtility.SetDirty(area);
         }
         
-        // SIMPLIFIED VERTEX SELECTION AND MOVEMENT
-        // Use simple circular handles for all vertices
+        // Handle vertex editing
+        HandleVertexEditing(worldVertices, e, area.AreaVertices, ref selectedVertex);
+        
+        // Draw connecting lines
+        DrawVertexConnections(worldVertices);
+    }
+    
+    private void HandleZoneEditing(Event e)
+    {
+        // Draw area outline
+        DrawShapePolygon();
+        
+        // Draw all zones
+        for (int zoneIndex = 0; zoneIndex < area.ScoringZones.Count; zoneIndex++)
+        {
+            ScoringZone zone = area.ScoringZones[zoneIndex];
+            List<Vector2> worldZoneVertices = GetWorldZoneVertices(zone);
+            
+            // Draw zone polygon
+            if (worldZoneVertices.Count >= 3)
+            {
+                Vector3[] poly = new Vector3[worldZoneVertices.Count];
+                for (int i = 0; i < worldZoneVertices.Count; i++)
+                {
+                    poly[i] = worldZoneVertices[i];
+                }
+                
+                Color zoneColor = zone.debugColor;
+                zoneColor.a = (zoneIndex == selectedZone) ? 0.4f : 0.2f;
+                Handles.color = zoneColor;
+                Handles.DrawAAConvexPolygon(poly);
+            }
+            
+            // Draw zone connections
+            DrawVertexConnections(worldZoneVertices, zone.debugColor);
+            
+            // Handle zone vertex editing only for selected zone
+            if (zoneIndex == selectedZone)
+            {
+                // Add zone vertices in Add Zone Vertex Mode
+                if (addZoneVertexMode && e.type == EventType.MouseDown && e.button == 0)
+                {
+                    Ray ray = HandleUtility.GUIPointToWorldRay(e.mousePosition);
+                    Vector3 worldPoint = ray.origin;
+                    worldPoint.z = area.transform.position.z;
+                    
+                    Undo.RecordObject(area, "Add Zone Vertex");
+                    Vector2 localPos = area.transform.InverseTransformPoint(worldPoint);
+                    zone.zoneVertices.Add(localPos);
+                    
+                    e.Use();
+                    EditorUtility.SetDirty(area);
+                }
+                
+                HandleVertexEditing(worldZoneVertices, e, zone.zoneVertices, ref selectedZoneVertex);
+            }
+        }
+    }
+    
+    private void HandleVertexEditing(List<Vector2> worldVertices, Event e, List<Vector2> localVertices, ref int selectedVertexRef)
+    {
+        // Draw vertex handles and handle selection/dragging
         for (int i = 0; i < worldVertices.Count; i++)
         {
             Vector3 worldPos = worldVertices[i];
             float actualHandleSize = HandleUtility.GetHandleSize(worldPos) * handleSize;
             
             // Determine color based on selection state
-            Color handleColor = (i == selectedVertex) ? Color.red : Color.yellow;
+            Color handleColor = (i == selectedVertexRef) ? Color.red : Color.yellow;
             
-            // Draw a solid disc for better visibility
+            // Draw handle
             Handles.color = new Color(handleColor.r, handleColor.g, handleColor.b, 0.3f);
             Handles.DrawSolidDisc(worldPos, Vector3.forward, actualHandleSize);
             
-            // Draw outline
             Handles.color = handleColor;
             Handles.DrawWireDisc(worldPos, Vector3.forward, actualHandleSize);
             
@@ -163,16 +399,14 @@ public class PlaceableAreaEditor : Editor
             Handles.Label(worldPos + Vector3.up * actualHandleSize * 1.5f, i.ToString());
             
             // Check for selection
-            if (e.type == EventType.MouseDown && e.button == 0 && !isDraggingVertex && !addVertexMode)
+            if (e.type == EventType.MouseDown && e.button == 0 && !isDraggingVertex && !addVertexMode && !addZoneVertexMode)
             {
-                // Convert handle position to screen space
                 Vector2 screenPos = HandleUtility.WorldToGUIPoint(worldPos);
                 float distToMouse = Vector2.Distance(screenPos, e.mousePosition);
                 
-                // If click is within handle area, select this vertex
-                if (distToMouse < 30f) // Generous click radius in pixels
+                if (distToMouse < 30f)
                 {
-                    selectedVertex = i;
+                    selectedVertexRef = i;
                     isDraggingVertex = true;
                     dragStartPosition = worldPos;
                     e.Use();
@@ -181,53 +415,40 @@ public class PlaceableAreaEditor : Editor
             }
         }
         
-        // Handle dragging movement for selected vertex
-        if (selectedVertex >= 0 && selectedVertex < area.AreaVertices.Count)
+        // Handle dragging for selected vertex
+        if (selectedVertexRef >= 0 && selectedVertexRef < localVertices.Count && isDraggingVertex)
         {
-            // Start dragging on mouse down
-            if (e.type == EventType.MouseDown && e.button == 0 && !isDraggingVertex && !addVertexMode)
+            Ray ray = HandleUtility.GUIPointToWorldRay(e.mousePosition);
+            Vector3 worldPoint = ray.origin;
+            worldPoint.z = area.transform.position.z;
+            
+            // Show drag indicator
+            Handles.color = Color.white;
+            Handles.DrawLine(dragStartPosition, worldPoint);
+            Handles.DrawWireDisc(worldPoint, Vector3.forward, HandleUtility.GetHandleSize(worldPoint) * 0.1f);
+            
+            if (e.type == EventType.MouseDrag)
             {
-                isDraggingVertex = true;
-                dragStartPosition = worldVertices[selectedVertex];
+                Undo.RecordObject(area, "Move Vertex");
+                Vector2 localPos = area.transform.InverseTransformPoint(worldPoint);
+                localVertices[selectedVertexRef] = localPos;
+                EditorUtility.SetDirty(area);
                 e.Use();
             }
             
-            // Process dragging
-            if (isDraggingVertex)
+            if (e.type == EventType.MouseUp && e.button == 0)
             {
-                // Convert mouse position to world space
-                Ray ray = HandleUtility.GUIPointToWorldRay(e.mousePosition);
-                Vector3 worldPoint = ray.origin;
-                worldPoint.z = area.transform.position.z; // Keep on same Z plane
-                
-                // Show a visual indicator during drag
-                Handles.color = Color.white;
-                Handles.DrawLine(dragStartPosition, worldPoint);
-                Handles.DrawWireDisc(worldPoint, Vector3.forward, HandleUtility.GetHandleSize(worldPoint) * 0.1f);
-                
-                // Update vertex position on drag
-                if (e.type == EventType.MouseDrag)
-                {
-                    Undo.RecordObject(area, "Move Vertex");
-                    Vector2 localPos = area.transform.InverseTransformPoint(worldPoint);
-                    area.AreaVertices[selectedVertex] = localPos;
-                    EditorUtility.SetDirty(area);
-                    e.Use();
-                }
-                
-                // End dragging on mouse up
-                if (e.type == EventType.MouseUp && e.button == 0)
-                {
-                    isDraggingVertex = false;
-                    e.Use();
-                }
+                isDraggingVertex = false;
+                e.Use();
             }
         }
-        
-        // Draw connecting lines between vertices
+    }
+    
+    private void DrawVertexConnections(List<Vector2> worldVertices, Color? color = null)
+    {
         if (worldVertices.Count > 1)
         {
-            Handles.color = new Color(0f, 1f, 0f, 0.8f);
+            Handles.color = color ?? new Color(0f, 1f, 0f, 0.8f);
             for (int i = 0; i < worldVertices.Count; i++)
             {
                 Vector3 start = worldVertices[i];
@@ -235,12 +456,16 @@ public class PlaceableAreaEditor : Editor
                 Handles.DrawLine(start, end);
             }
         }
-        
-        // Force repaint to ensure smooth dragging
-        if (isDraggingVertex)
+    }
+    
+    private List<Vector2> GetWorldZoneVertices(ScoringZone zone)
+    {
+        List<Vector2> worldPoints = new List<Vector2>();
+        foreach (Vector2 point in zone.zoneVertices)
         {
-            SceneView.RepaintAll();
+            worldPoints.Add((Vector2)area.transform.TransformPoint(point));
         }
+        return worldPoints;
     }
     
     private void DrawShapePolygon()
@@ -262,19 +487,34 @@ public class PlaceableAreaEditor : Editor
     {
         if (e.type == EventType.KeyDown && (e.keyCode == KeyCode.Delete || e.keyCode == KeyCode.Backspace))
         {
-            if (selectedVertex >= 0 && selectedVertex < area.AreaVertices.Count)
+            if (!editingZones)
             {
-                Undo.RecordObject(area, "Remove Vertex");
-                area.AreaVertices.RemoveAt(selectedVertex);
-                selectedVertex = -1;
-                e.Use();
-                EditorUtility.SetDirty(area);
+                if (selectedVertex >= 0 && selectedVertex < area.AreaVertices.Count)
+                {
+                    Undo.RecordObject(area, "Remove Vertex");
+                    area.AreaVertices.RemoveAt(selectedVertex);
+                    selectedVertex = -1;
+                    e.Use();
+                    EditorUtility.SetDirty(area);
+                }
+            }
+            else
+            {
+                if (selectedZoneVertex >= 0 && selectedZone >= 0 && selectedZone < area.ScoringZones.Count)
+                {
+                    Undo.RecordObject(area, "Remove Zone Vertex");
+                    area.ScoringZones[selectedZone].zoneVertices.RemoveAt(selectedZoneVertex);
+                    selectedZoneVertex = -1;
+                    e.Use();
+                    EditorUtility.SetDirty(area);
+                }
             }
         }
         
-        if (addVertexMode && e.type == EventType.KeyDown && e.keyCode == KeyCode.Escape)
+        if ((addVertexMode || addZoneVertexMode) && e.type == EventType.KeyDown && e.keyCode == KeyCode.Escape)
         {
             addVertexMode = false;
+            addZoneVertexMode = false;
             Tools.hidden = false;
             e.Use();
             Repaint();
@@ -295,6 +535,26 @@ public class PlaceableAreaEditor : Editor
         }
         
         area.AreaVertices.Add(newPos);
+    }
+    
+    private void AddZoneVertexAtCenter(int zoneIndex)
+    {
+        if (zoneIndex < 0 || zoneIndex >= area.ScoringZones.Count) return;
+        
+        ScoringZone zone = area.ScoringZones[zoneIndex];
+        Vector2 newPos = Vector2.zero;
+        
+        if (zone.zoneVertices.Count > 0)
+        {
+            foreach (Vector2 v in zone.zoneVertices)
+            {
+                newPos += v;
+            }
+            newPos /= zone.zoneVertices.Count;
+            newPos += new Vector2(0.2f, 0.2f);
+        }
+        
+        zone.zoneVertices.Add(newPos);
     }
     
     private void CreateSquareShape()

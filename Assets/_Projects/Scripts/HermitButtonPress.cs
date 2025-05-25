@@ -140,6 +140,7 @@ public class HermitButtonPress : MonoBehaviour, IPointerDownHandler, IPointerUpH
         if (!isPressed && !loadingStarted)
         {
             InitiateButtonPress();
+            SoundManager.Instance.PlaySFX(SoundEffect.PlaceDeco);
         }
     }
     

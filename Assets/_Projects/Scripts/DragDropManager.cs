@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using DG.Tweening;
 
 public class DragDropManager : MonoBehaviour
 {
@@ -26,17 +27,56 @@ public class DragDropManager : MonoBehaviour
 
     void Update()
     {
-        // Handle starting drag
         if (Input.GetMouseButtonDown(0))
         {
-            RaycastHit2D hit = Physics2D.Raycast(GetMouseWorldPosition(), Vector2.zero);
+            Vector2 mouseWorldPos = GetMouseWorldPosition();
+            Debug.Log($"Mouse clicked at world position: {mouseWorldPos}");
+            SoundManager.Instance.PlaySFX(SoundEffect.PickupDeco);
+            RaycastHit2D hit = Physics2D.Raycast(mouseWorldPos, Vector2.zero);
             if (hit.collider != null)
             {
+                Debug.Log($"Raycast hit collider: {hit.collider.name} on object: {hit.collider.gameObject.name}");
+
                 DraggableItem draggable = hit.collider.GetComponent<DraggableItem>();
-                if (draggable != null && draggable.isDraggable)
+
+                // If the hit collider doesn't have DraggableItem, check the parent
+                if (draggable == null)
                 {
-                    StartDragging(draggable, hit.point);
+                    Debug.Log("No DraggableItem on hit collider, checking parent...");
+                    draggable = hit.collider.GetComponentInParent<DraggableItem>();
                 }
+
+                if (draggable != null)
+                {
+                    Debug.Log($"Found DraggableItem: {draggable.name}, isDraggable: {draggable.isDraggable}");
+
+                    if (draggable.isDraggable)
+                    {
+                        draggable.transform.DOKill();
+                        // Use the interaction collider bounds for better hit detection
+                        Collider2D interactionCollider = draggable.GetInteractionCollider();
+                        Debug.Log($"Interaction collider: {interactionCollider.name}, bounds: {interactionCollider.bounds}");
+
+                        // Check if the mouse position is actually within the interaction bounds
+                        if (interactionCollider.bounds.Contains(mouseWorldPos))
+                        {
+                            Debug.Log("Mouse is within interaction bounds - starting drag");
+                            StartDragging(draggable, hit.point);
+                        }
+                        else
+                        {
+                            Debug.Log("Mouse is NOT within interaction bounds");
+                        }
+                    }
+                }
+                else
+                {
+                    Debug.Log("No DraggableItem found on hit object or its parent");
+                }
+            }
+            else
+            {
+                Debug.Log("Raycast hit nothing");
             }
         }
 
@@ -54,6 +94,7 @@ public class DragDropManager : MonoBehaviour
             if (Input.GetMouseButtonUp(0))
             {
                 DropItem();
+                
             }
         }
     }
@@ -62,14 +103,27 @@ public class DragDropManager : MonoBehaviour
     {
         currentDraggable = draggable;
 
+        // Hide any tooltips when starting to drag and show description during drag
+        TooltipTrigger tooltipTrigger = currentDraggable.GetInteractionCollider().GetComponent<TooltipTrigger>();
+        if (tooltipTrigger != null)
+        {
+            tooltipTrigger.ForceHideTooltip();
+        }
+
+        // Show hint during dragging if the item has description
+        DecorationItem decorationItem = currentDraggable.GetComponent<DecorationItem>();
+        if (decorationItem != null && decorationItem.ItemData != null && HintUI.Instance != null)
+        {
+            HintUI.Instance.ShowHint(decorationItem.ItemData.description);
+        }
+
         // Calculate offset to maintain relative position of cursor to object
         dragOffset = currentDraggable.transform.position - new Vector3(hitPoint.x, hitPoint.y, currentDraggable.transform.position.z);
-        dragOffset.z = 0; // Ensure offset doesn't affect z
+        dragOffset.z = 0;
     }
 
     private void CheckPlacement()
     {
-        // Get the collider for bounds checking
         Collider2D collider = currentDraggable.GetComponent<Collider2D>();
         if (collider == null)
         {
@@ -78,21 +132,35 @@ public class DragDropManager : MonoBehaviour
         }
 
         // Check if the object is fully contained in any placeable area
-        bool insideArea = false;
+        bool insideValidArea = false;
+        bool inRestrictedArea = false;
+
+        // Get decoration item data for restriction checking
+        DecorationItem decorationItem = currentDraggable.GetComponent<DecorationItem>();
+
         foreach (PlaceableArea area in placeableAreas)
         {
             if (area.ContainsCollider(collider))
             {
-                insideArea = true;
-                break;
+                insideValidArea = true;
+
+                // Check if this item is restricted from this area
+                if (decorationItem != null && decorationItem.ItemData != null)
+                {
+                    if (decorationItem.ItemData.restrictedAreas.Contains(area.AreaIdentifier))
+                    {
+                        inRestrictedArea = true;
+                        break; // Exit early if we find a restriction
+                    }
+                }
             }
         }
 
         // Check if overlapping with any other draggable items
         bool isOverlapping = CheckForOverlap(collider);
 
-        // Only allow placement if inside area AND not overlapping other items
-        canPlace = insideArea && !isOverlapping;
+        // Only allow placement if inside area AND not in restricted area AND not overlapping other items
+        canPlace = insideValidArea && !inRestrictedArea && !isOverlapping;
 
         // Update visual feedback
         currentDraggable.SetColorFeedback(canPlace);
@@ -121,6 +189,11 @@ public class DragDropManager : MonoBehaviour
                 // Found overlap with another placed draggable item
                 return true;
             }
+
+            if (other.gameObject.CompareTag("Blocker"))
+            {
+                return true;
+            }
         }
 
         // No overlap with other draggable items
@@ -129,6 +202,12 @@ public class DragDropManager : MonoBehaviour
 
     private void DropItem()
     {
+        // Hide hint when dropping
+        if (HintUI.Instance != null)
+        {
+            HintUI.Instance.HideHint();
+        }
+
         if (canPlace)
         {
             // Place at current position, but reset Z to 0
@@ -137,17 +216,53 @@ public class DragDropManager : MonoBehaviour
             currentDraggable.transform.position = finalPosition;
             currentDraggable.lastValidPosition = finalPosition;
             currentDraggable.isCurrentlyPlaced = true;
+            SoundManager.Instance.PlaySFX(SoundEffect.PlaceDeco);
+
+            // Handle scoring if this is a decoration item
+            DecorationItem decorationItem = currentDraggable.GetComponent<DecorationItem>();
+            if (decorationItem != null)
+            {
+                // DON'T calculate score during placement - only at end of day
+                // Just reset the score so it's clean for end-of-day calculation
+                decorationItem.ResetScore();
+
+                // Add to score manager tracking if not already tracked
+                if (ScoreManager.Instance != null)
+                {
+                    ScoreManager.Instance.AddItemToTracking(decorationItem);
+                }
+
+                // Show placement debug but don't calculate final score yet
+                if (PlacementDebugUI.Instance != null)
+                {
+                    // Preview the score but don't make it final
+                    PlacementScore previewScore = decorationItem.PreviewScoreAtPosition(decorationItem.GetColliderWorldCenter());
+                    PlacementDebugUI.Instance.ShowPlacementScore(decorationItem, previewScore);
+                }
+            }
         }
         else
         {
             // Return to last valid position
             currentDraggable.transform.position = currentDraggable.lastValidPosition;
+            SoundManager.Instance.PlaySFX(SoundEffect.InvalidPlace);
+            // Reset scoring for decoration items when they return to invalid position
+            DecorationItem decorationItem = currentDraggable.GetComponent<DecorationItem>();
+            if (decorationItem != null)
+            {
+                decorationItem.ResetScore();
+            }
+
+            if (PlacementDebugUI.Instance != null)
+            {
+                PlacementDebugUI.Instance.ClearDebugInfo();
+            }
         }
 
         // Reset color and clear reference
         currentDraggable.ResetColor();
         currentDraggable = null;
-    }
+    }    
 
     private Vector3 GetMouseWorldPosition()
     {

@@ -3,25 +3,33 @@ using UnityEngine;
 
 public class PlaceableArea : MonoBehaviour
 {
+    [Header("Area Identity")]
+    [SerializeField] private string areaIdentifier = "Floor"; // Used to match with DecorationItemData
+
+    [Header("Area Definition")]
     [SerializeField] private List<Vector2> areaVertices = new List<Vector2>();
     [SerializeField] private Color debugColor = new Color(0, 1, 0, 0.3f);
     [SerializeField] private bool showDebug = true;
-    
-    // For editor functions
+
+    [Header("Scoring Zones")]
+    [SerializeField] private List<ScoringZone> scoringZones = new List<ScoringZone>();
+    [SerializeField] private bool showZoneDebug = true;
+
+    // Properties
+    public string AreaIdentifier => areaIdentifier;
     public List<Vector2> AreaVertices => areaVertices;
-    
+    public List<ScoringZone> ScoringZones => scoringZones;
+
     // Check if a point is inside this placeable area
     public bool ContainsPoint(Vector2 worldPoint)
     {
-        // Convert world point to local space
         Vector2 localPoint = transform.InverseTransformPoint(worldPoint);
         return IsPointInPolygon(localPoint, areaVertices);
     }
-    
+
     // Check if a collider is fully contained in this area
     public bool ContainsCollider(Collider2D collider)
     {
-        // Handle different collider types
         if (collider is CircleCollider2D circleCollider)
         {
             return ContainsCircleCollider(circleCollider);
@@ -36,28 +44,115 @@ public class PlaceableArea : MonoBehaviour
         }
         else
         {
-            // For any other collider type, fall back to bounds check
             return ContainsBounds(collider.bounds);
         }
     }
-    
-    // Handle Circle Collider specifically
+
+    // Get the best scoring zone for a given world position
+    public ScoringZone GetBestScoringZone(Vector2 worldPoint)
+    {
+        Vector2 localPoint = transform.InverseTransformPoint(worldPoint);
+
+        ScoringZone bestZone = null;
+        int highestPoints = int.MinValue;
+
+        foreach (ScoringZone zone in scoringZones)
+        {
+            if (IsPointInPolygon(localPoint, zone.zoneVertices) && zone.pointValue > highestPoints)
+            {
+                highestPoints = zone.pointValue;
+                bestZone = zone;
+            }
+        }
+
+        return bestZone;
+    }
+
+    // Get scoring for an item placed at a specific position
+    public PlacementScore CalculatePlacementScore(DecorationItemData itemData, Vector2 worldPosition)
+    {
+        PlacementScore score = new PlacementScore();
+        score.worldPosition = worldPosition;
+        score.placedInValidArea = ContainsPoint(worldPosition);
+
+        if (!score.placedInValidArea)
+        {
+            score.pointsAwarded = itemData.wrongPlacementPenalty;
+            score.scoringReason = "Placed outside valid area";
+            return score;
+        }
+
+        // NEW: Check if this item is restricted from this area
+        if (itemData.restrictedAreas.Contains(areaIdentifier))
+        {
+            score.pointsAwarded = itemData.wrongPlacementPenalty;
+            score.scoringReason = $"Item cannot be placed in {areaIdentifier} area";
+            score.placedInValidArea = false; // Mark as invalid placement
+            return score;
+        }
+
+        // Find matching preference for this area
+        PlacementPreference matchingPreference = null;
+        foreach (var preference in itemData.placementPreferences)
+        {
+            if (preference.areaIdentifier == areaIdentifier)
+            {
+                matchingPreference = preference;
+                break;
+            }
+        }
+
+        if (matchingPreference == null)
+        {
+            // No specific preference for this area, use penalty instead of base points
+            score.pointsAwarded = itemData.wrongPlacementPenalty;
+            score.scoringReason = $"Item doesn't prefer this area ({areaIdentifier}) - penalty applied";
+            return score;
+        }
+
+        // Rest of the method remains the same...
+        // Check for zone-specific scoring
+        Vector2 localPoint = transform.InverseTransformPoint(worldPosition);
+        PlacementZone bestZone = null;
+        int highestZonePoints = int.MinValue;
+
+        foreach (var zone in matchingPreference.zones)
+        {
+            if (IsPointInPolygon(localPoint, zone.zoneVertices) && zone.pointValue > highestZonePoints)
+            {
+                highestZonePoints = zone.pointValue;
+                bestZone = zone;
+            }
+        }
+
+        if (bestZone != null)
+        {
+            score.pointsAwarded = bestZone.pointValue;
+            score.scoringReason = $"Placed in {bestZone.zoneName} zone";
+            score.zoneName = bestZone.zoneName;
+        }
+        else
+        {
+            // In preferred area but not in any specific zone
+            score.pointsAwarded = matchingPreference.defaultAreaPoints;
+            score.scoringReason = $"Placed in preferred area ({areaIdentifier})";
+        }
+
+        return score;
+    }
+
+    #region Collider Containment Methods
     private bool ContainsCircleCollider(CircleCollider2D circleCollider)
     {
-        // Get the center and radius in world space
         Vector2 center = circleCollider.transform.TransformPoint(circleCollider.offset);
-        
-        // Get the world space radius by accounting for scaling
         float worldRadius = circleCollider.radius;
         Vector3 scale = circleCollider.transform.lossyScale;
         worldRadius *= Mathf.Max(Mathf.Abs(scale.x), Mathf.Abs(scale.y));
-        
-        // First check if the center is inside
+
         if (!ContainsPoint(center))
             return false;
-        
-        // Then check points around the perimeter of the circle
-        int numPoints = 8; // Check 8 points around the circle
+
+        int numPoints = 8;
         for (int i = 0; i < numPoints; i++)
         {
             float angle = (2 * Mathf.PI * i) / numPoints;
@@ -65,65 +160,57 @@ public class PlaceableArea : MonoBehaviour
                 Mathf.Cos(angle) * worldRadius,
                 Mathf.Sin(angle) * worldRadius
             );
-            
+
             if (!ContainsPoint(pointOnCircle))
                 return false;
         }
-        
+
         return true;
     }
-    
-    // Handle Box Collider specifically
+
     private bool ContainsBoxCollider(BoxCollider2D boxCollider)
     {
-        // Get local corners of the box
         Vector2 halfSize = boxCollider.size / 2;
         Vector2 offset = boxCollider.offset;
-        
+
         Vector2[] corners = new Vector2[4];
-        corners[0] = offset + new Vector2(-halfSize.x, -halfSize.y); // Bottom-left
-        corners[1] = offset + new Vector2(halfSize.x, -halfSize.y);  // Bottom-right
-        corners[2] = offset + new Vector2(halfSize.x, halfSize.y);   // Top-right
-        corners[3] = offset + new Vector2(-halfSize.x, halfSize.y);  // Top-left
-        
-        // Transform corners to world space
+        corners[0] = offset + new Vector2(-halfSize.x, -halfSize.y);
+        corners[1] = offset + new Vector2(halfSize.x, -halfSize.y);
+        corners[2] = offset + new Vector2(halfSize.x, halfSize.y);
+        corners[3] = offset + new Vector2(-halfSize.x, halfSize.y);
+
         for (int i = 0; i < 4; i++)
         {
             corners[i] = boxCollider.transform.TransformPoint(corners[i]);
-            
+
             if (!ContainsPoint(corners[i]))
                 return false;
         }
-        
+
         return true;
     }
-    
-    // Handle Polygon Collider specifically
+
     private bool ContainsPolygonCollider(PolygonCollider2D polygonCollider)
     {
-        // Check all vertices of the polygon
         for (int i = 0; i < polygonCollider.points.Length; i++)
         {
             Vector2 worldPoint = polygonCollider.transform.TransformPoint(polygonCollider.points[i]);
-            
+
             if (!ContainsPoint(worldPoint))
                 return false;
         }
-        
+
         return true;
     }
-    
-    // Fallback method for other collider types
+
     private bool ContainsBounds(Bounds bounds)
     {
-        // Get the four corners of the bounding box in world space
         Vector2[] corners = new Vector2[4];
-        corners[0] = new Vector2(bounds.min.x, bounds.min.y); // Bottom-left
-        corners[1] = new Vector2(bounds.max.x, bounds.min.y); // Bottom-right
-        corners[2] = new Vector2(bounds.max.x, bounds.max.y); // Top-right
-        corners[3] = new Vector2(bounds.min.x, bounds.max.y); // Top-left
-        
-        // Check if all corners are inside the polygon
+        corners[0] = new Vector2(bounds.min.x, bounds.min.y);
+        corners[1] = new Vector2(bounds.max.x, bounds.min.y);
+        corners[2] = new Vector2(bounds.max.x, bounds.max.y);
+        corners[3] = new Vector2(bounds.min.x, bounds.max.y);
+
         foreach (Vector2 corner in corners)
         {
             if (!ContainsPoint(corner))
@@ -131,28 +218,29 @@ public class PlaceableArea : MonoBehaviour
                 return false;
             }
         }
-        
+
         return true;
     }
-    
+    #endregion
+
     // Point-in-polygon algorithm (ray casting)
     private bool IsPointInPolygon(Vector2 point, List<Vector2> polygon)
     {
         if (polygon.Count < 3) return false;
-        
+
         bool inside = false;
         for (int i = 0, j = polygon.Count - 1; i < polygon.Count; j = i++)
         {
             bool intersect = ((polygon[i].y > point.y) != (polygon[j].y > point.y)) &&
-                (point.x < (polygon[j].x - polygon[i].x) * (point.y - polygon[i].y) / 
+                (point.x < (polygon[j].x - polygon[i].x) * (point.y - polygon[i].y) /
                 (polygon[j].y - polygon[i].y) + polygon[i].x);
-                
+
             if (intersect) inside = !inside;
         }
-        
+
         return inside;
     }
-    
+
     // Convert local vertices to world space points
     public List<Vector2> GetWorldVertices()
     {
@@ -163,16 +251,16 @@ public class PlaceableArea : MonoBehaviour
         }
         return worldPoints;
     }
-    
+
     // For debugging
     private void OnDrawGizmos()
     {
         if (!showDebug) return;
-        
-        // Draw the placeable area
+
+        // Draw the main placeable area
         Gizmos.color = debugColor;
         List<Vector2> worldVertices = GetWorldVertices();
-        
+
         if (worldVertices.Count > 1)
         {
             for (int i = 0; i < worldVertices.Count; i++)
@@ -182,5 +270,51 @@ public class PlaceableArea : MonoBehaviour
                 Gizmos.DrawLine(current, next);
             }
         }
+
+        // Draw scoring zones if enabled
+        if (showZoneDebug)
+        {
+            foreach (ScoringZone zone in scoringZones)
+            {
+                Gizmos.color = zone.debugColor;
+
+                if (zone.zoneVertices.Count > 1)
+                {
+                    for (int i = 0; i < zone.zoneVertices.Count; i++)
+                    {
+                        Vector2 current = transform.TransformPoint(zone.zoneVertices[i]);
+                        Vector2 next = transform.TransformPoint(zone.zoneVertices[(i + 1) % zone.zoneVertices.Count]);
+                        Gizmos.DrawLine(current, next);
+                    }
+                }
+            }
+        }
     }
+}
+
+[System.Serializable]
+public class ScoringZone
+{
+    [Header("Zone Info")]
+    public string zoneName;
+
+    [Header("Zone Shape")]
+    [Tooltip("Local coordinates relative to the PlaceableArea transform")]
+    public List<Vector2> zoneVertices = new List<Vector2>();
+
+    [Header("Scoring")]
+    public int pointValue = 20;
+
+    [Header("Visual")]
+    public Color debugColor = Color.green;
+}
+
+[System.Serializable]
+public class PlacementScore
+{
+    public Vector2 worldPosition;
+    public bool placedInValidArea;
+    public int pointsAwarded;
+    public string scoringReason;
+    public string zoneName;
 }

@@ -5,6 +5,7 @@ TagManager:
   serializedVersion: 3
   tags:
   - Draggable
+  - Blocker
   layers:
   - Default
   - TransparentFX

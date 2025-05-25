@@ -1,0 +1,38 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b925be0c727ab5f48a6a613105b4230f, type: 3}
+  m_Name: SharpPlant
+  m_EditorClassIdentifier: 
+  itemName: Sharp Plant
+  itemSprite: {fileID: 21300000, guid: 77234d3c5705ebd49a10f1b77da3332a, type: 3}
+  description: "This plant is scratchy. Maybe I'll place it somewhere out of the
+    way\u2026"
+  placementPreferences:
+  - areaIdentifier: Floor2
+    zones:
+    - zoneName: SharpPlant
+      zoneVertices:
+      - {x: -54.854004, y: -100.22302}
+      - {x: -55.415894, y: -22.12085}
+      - {x: 94.607666, y: -20.43518}
+      - {x: 84.49371, y: -54.710266}
+      - {x: 64.26581, y: -101.3468}
+      pointValue: 10
+      debugColor: {r: 0, g: 0, b: 1, a: 1}
+    defaultAreaPoints: 5
+  - areaIdentifier: Floor1
+    zones: []
+    defaultAreaPoints: 5
+  basePoints: 0
+  wrongPlacementPenalty: 0
+  restrictedAreas:
+  - Wall
